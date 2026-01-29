@@ -7,6 +7,8 @@ build/
 
 # Executables
 simpledb
+test_btree
+test_db
 *.exe
 
 # Database files
