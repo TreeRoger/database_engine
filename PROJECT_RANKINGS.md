@@ -1,8 +1,8 @@
 # Project Rankings for Resume/Internship Hunting
 
-## 🏆 Tier 1: Maximum Impact (Highly Impressive, Industry-Relevant)
+## Tier 1: Maximum Impact (Highly Impressive, Industry-Relevant)
 
-### 1. **Database Engine** (C or Rust) ⭐⭐⭐⭐⭐
+### 1. **Database Engine** (C or Rust) (5/5)
 **Why it's #1:**
 - Demonstrates deep understanding of data structures (B-trees, hash tables)
 - Shows persistence, transactions, concurrency - all critical skills
@@ -11,7 +11,7 @@
 - Easy to demo and explain in interviews
 - **Best for:** Backend, Infrastructure, Database, Systems roles
 
-### 2. **HTTP/Web Server** (C or Rust) ⭐⭐⭐⭐⭐
+### 2. **HTTP/Web Server** (C or Rust) (5/5)
 **Why it's #2:**
 - Core systems programming skill
 - Networking, concurrency, I/O handling
@@ -20,7 +20,7 @@
 - Can add features incrementally
 - **Best for:** Backend, Systems, Infrastructure, Full-stack roles
 
-### 3. **Distributed Key-Value Store** (Rust) ⭐⭐⭐⭐⭐
+### 3. **Distributed Key-Value Store** (Rust) (5/5)
 **Why it's #3:**
 - Shows distributed systems knowledge (very hot topic)
 - Raft consensus is impressive and interview-relevant
@@ -28,9 +28,9 @@
 - Shows understanding of CAP theorem, consistency
 - **Best for:** Backend, Distributed Systems, Infrastructure roles
 
-## 🥈 Tier 2: Strong Impact (Impressive, Good Learning)
+## Tier 2: Strong Impact (Impressive, Good Learning)
 
-### 4. **Command-line Shell** (C) ⭐⭐⭐⭐
+### 4. **Command-line Shell** (C) (4/5)
 **Why it's strong:**
 - Shows deep OS understanding (processes, pipes, signals)
 - Demonstrates parsing and system programming
@@ -38,7 +38,7 @@
 - Complete, self-contained project
 - **Best for:** Systems, OS, Backend roles
 
-### 5. **Game Engine Core** (C++) ⭐⭐⭐⭐
+### 5. **Game Engine Core** (C++) (4/5)
 **Why it's strong:**
 - Shows OOP, design patterns, performance optimization
 - Impressive visual demo
@@ -46,7 +46,7 @@
 - Good for showing passion and complexity
 - **Best for:** Game Dev, Graphics, Performance-critical roles
 
-### 6. **Memory Allocator** (C) ⭐⭐⭐⭐
+### 6. **Memory Allocator** (C) (4/5)
 **Why it's strong:**
 - Deep systems understanding
 - Performance optimization skills
@@ -54,7 +54,7 @@
 - Great talking point in interviews
 - **Best for:** Systems, OS, Embedded, Performance roles
 
-### 7. **Container Runtime** (Rust) ⭐⭐⭐⭐
+### 7. **Container Runtime** (Rust) (4/5)
 **Why it's strong:**
 - Very modern and relevant (Docker, Kubernetes)
 - Shows systems programming + safety
@@ -62,34 +62,34 @@
 - Hot topic in industry
 - **Best for:** DevOps, Infrastructure, Systems, Cloud roles
 
-## 🥉 Tier 3: Good Impact (Solid Projects)
+## Tier 3: Good Impact (Solid Projects)
 
-### 8. **File System Implementation** (C) ⭐⭐⭐
+### 8. **File System Implementation** (C) (3/5)
 - Shows OS knowledge
 - Less common, stands out
 - Good for systems roles
 
-### 9. **Network Packet Analyzer** (Rust) ⭐⭐⭐
+### 9. **Network Packet Analyzer** (Rust) (3/5)
 - Security/networking domain
 - Shows protocol understanding
 - Good for security/networking roles
 
-### 10. **Build System** (C++/Rust) ⭐⭐⭐
+### 10. **Build System** (C++/Rust) (3/5)
 - Shows tooling knowledge
 - Less flashy but practical
 - Good for infrastructure roles
 
-### 11. **Version Control System** (C/Rust) ⭐⭐⭐
+### 11. **Version Control System** (C/Rust) (3/5)
 - Shows understanding of Git internals
 - Good for tooling/infrastructure roles
 - Can be impressive if done well
 
-### 12. **High-Performance JSON Parser** (C/C++) ⭐⭐⭐
+### 12. **High-Performance JSON Parser** (C/C++) (3/5)
 - Performance optimization showcase
 - Practical utility
 - Good for performance-critical roles
 
-## 📊 Tier 4: Niche but Valuable
+## Tier 4: Niche but Valuable
 
 ### 13-20. Algorithm/Data Structure Projects
 - Good for demonstrating CS fundamentals
@@ -106,7 +106,7 @@
 - Less relevant for general software roles
 - Niche but valuable in right context
 
-## 🎯 Recommendations by Career Path
+## Recommendations by Career Path
 
 ### **Backend/Full-Stack:**
 1. Database Engine
@@ -135,7 +135,7 @@
 3. Shell
 4. Game Engine
 
-## 💡 Key Factors for Resume Impact
+## Key Factors for Resume Impact
 
 1. **Completeness** - A working, demonstrable project > incomplete ambitious project
 2. **Documentation** - README, architecture docs, blog post
@@ -145,7 +145,7 @@
 6. **GitHub Activity** - Regular commits, good commit messages
 7. **Demo/Visual** - Something you can show in interviews
 
-## 🚀 Quick Win Strategy
+## Quick Win Strategy
 
 **For maximum resume impact in shortest time:**
 1. **Start with HTTP Server** (2-3 weeks) - Quick to get working

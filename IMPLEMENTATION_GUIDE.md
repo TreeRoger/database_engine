@@ -2,7 +2,7 @@
 
 This guide will help you implement the database engine step by step.
 
-## 📚 Phase 1: Core B-Tree Implementation
+## Phase 1: Core B-Tree Implementation
 
 ### Step 1: Complete B-Tree Search
 The search operation is the foundation. Start here:
@@ -51,7 +51,7 @@ Most complex operation. Cases to handle:
    - Recursively delete from leaf
 3. **Node underflow**: Merge with sibling or borrow from sibling
 
-## 📚 Phase 2: Page Management
+## Phase 2: Page Management
 
 ### Step 1: Complete Page Allocation
 - Maintain a free page list in metadata
@@ -68,14 +68,14 @@ Most complex operation. Cases to handle:
 - Recursively load nodes from pages
 - Reconstruct B-tree in memory
 
-## 📚 Phase 3: Integration
+## Phase 3: Integration
 
 ### Connect Everything
 1. `db_insert()` → `btree_insert()` → `page_write()`
 2. `db_get()` → `btree_search()` → `page_read()` (if values stored separately)
 3. `db_delete()` → `btree_delete()` → `page_free()`
 
-## 🧪 Testing Strategy
+## Testing Strategy
 
 ### Unit Tests
 1. Test B-tree operations in isolation (no disk)
@@ -93,7 +93,7 @@ Most complex operation. Cases to handle:
 2. Delete random keys
 3. Verify integrity
 
-## 📖 Learning Resources
+## Learning Resources
 
 ### B-Tree Algorithm
 - **CLRS Chapter 18**: B-Trees (Introduction to Algorithms)
@@ -105,7 +105,7 @@ Most complex operation. Cases to handle:
 - **PostgreSQL Internals**: Great for understanding page-based storage
 - **Database Systems: The Complete Book** by Garcia-Molina
 
-## 🎯 Milestones
+## Milestones
 
 ### Week 1-2: B-Tree Core
 - [ ] Implement search
@@ -130,7 +130,7 @@ Most complex operation. Cases to handle:
 - [ ] Concurrency (locks)
 - [ ] Query interface
 
-## 💡 Tips
+## Tips
 
 1. **Start Simple**: Get search working first, then insert, then delete
 2. **Test Incrementally**: After each function, write a test
@@ -138,7 +138,7 @@ Most complex operation. Cases to handle:
 4. **Visualize**: Print the tree structure to debug
 5. **Reference Implementation**: Look at SQLite's B-tree code (it's well-documented)
 
-## 🐛 Common Pitfalls
+## Common Pitfalls
 
 1. **Off-by-one errors**: B-tree order calculations are tricky
 2. **Memory management**: Don't forget to free strings when deleting
@@ -146,4 +146,4 @@ Most complex operation. Cases to handle:
 4. **Node splitting**: Make sure parent pointers are updated correctly
 5. **Edge cases**: Empty tree, single node, root split
 
-Good luck! 🚀
+Good luck!

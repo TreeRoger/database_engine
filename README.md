@@ -2,7 +2,7 @@
 
 A lightweight, educational database engine written in C, implementing core database concepts including B-tree indexing, persistence, and basic query operations.
 
-## 🎯 Project Goals
+## Project Goals
 
 - Implement a B-tree based key-value store
 - Add persistence to disk
@@ -11,7 +11,7 @@ A lightweight, educational database engine written in C, implementing core datab
 - Add concurrency control (locking)
 - Create a simple query interface
 
-## 📋 Features
+## Features
 
 ### Phase 1: Core Engine (Current)
 - [x] Project structure
@@ -41,7 +41,7 @@ A lightweight, educational database engine written in C, implementing core datab
 - [ ] Range queries
 - [ ] Index scanning
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐
@@ -65,13 +65,13 @@ A lightweight, educational database engine written in C, implementing core datab
 └─────────────────┘
 ```
 
-## 🚀 Building
+## Building
 
 ```bash
 make
 ```
 
-## 📖 Usage
+## Usage
 
 ```bash
 # Start the database
@@ -81,7 +81,7 @@ make
 ./simpledb mydb.db
 ```
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -94,12 +94,12 @@ make test-btree
 make test-db
 ```
 
-## 📚 Learning Resources
+## Learning Resources
 
 - Database Systems: The Complete Book (Garcia-Molina)
 - SQLite Architecture: https://www.sqlite.org/arch.html
 - B-Tree Visualization: https://www.cs.usfca.edu/~galles/visualization/BTree.html
 
-## 📝 License
+## License
 
 MIT
