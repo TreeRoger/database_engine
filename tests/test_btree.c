@@ -231,6 +231,79 @@ void test_various_insertion_patterns(void) {
     printf("  PASSED\n");
 }
 
+// Test delete operation
+void test_delete(void) {
+    printf("Test 8: Delete operation\n");
+    
+    btree_t *tree = btree_create();
+    assert(tree != NULL);
+    
+    // Insert keys
+    assert(btree_insert(tree, "a", "1") == 0);
+    assert(btree_insert(tree, "b", "2") == 0);
+    assert(btree_insert(tree, "c", "3") == 0);
+    
+    // Delete from leaf
+    assert(btree_delete(tree, "b") == 0);
+    assert(btree_search(tree, "b") == NULL);
+    assert(btree_search(tree, "a") != NULL);
+    free(btree_search(tree, "a"));
+    assert(btree_search(tree, "c") != NULL);
+    free(btree_search(tree, "c"));
+    
+    // Delete remaining
+    assert(btree_delete(tree, "a") == 0);
+    assert(btree_delete(tree, "c") == 0);
+    assert(btree_search(tree, "a") == NULL);
+    assert(btree_search(tree, "c") == NULL);
+    
+    // Delete non-existent
+    assert(btree_delete(tree, "x") == -1);
+    
+    btree_destroy(tree);
+    printf("  PASSED\n");
+}
+
+// Test delete with many keys (triggers merge/borrow)
+void test_delete_many(void) {
+    printf("Test 9: Delete with many keys\n");
+    
+    btree_t *tree = btree_create();
+    assert(tree != NULL);
+    
+    // Insert 20 keys to cause splits
+    for (int i = 0; i < 20; i++) {
+        char key[16];
+        char value[16];
+        snprintf(key, sizeof(key), "k%d", i);
+        snprintf(value, sizeof(value), "v%d", i);
+        assert(btree_insert(tree, key, value) == 0);
+    }
+    
+    // Delete half of them
+    for (int i = 0; i < 20; i += 2) {
+        char key[16];
+        snprintf(key, sizeof(key), "k%d", i);
+        assert(btree_delete(tree, key) == 0);
+    }
+    
+    // Verify remaining keys exist and deleted are gone
+    for (int i = 0; i < 20; i++) {
+        char key[16];
+        snprintf(key, sizeof(key), "k%d", i);
+        char *value = btree_search(tree, key);
+        if (i % 2 == 0) {
+            assert(value == NULL);
+        } else {
+            assert(value != NULL);
+            free(value);
+        }
+    }
+    
+    btree_destroy(tree);
+    printf("  PASSED\n");
+}
+
 int main(void) {
     printf("Running B-tree tests...\n\n");
     
@@ -241,6 +314,8 @@ int main(void) {
     test_node_splitting();
     test_root_splitting();
     test_various_insertion_patterns();
+    test_delete();
+    test_delete_many();
     
     printf("\nAll tests passed!\n");
     return 0;

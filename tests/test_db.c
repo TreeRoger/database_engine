@@ -109,9 +109,34 @@ void test_update(void) {
     printf("  PASSED\n");
 }
 
+// Test delete operation
+void test_delete(void) {
+    printf("Test 5: Delete operation\n");
+    
+    db_t *db = NULL;
+    db_open("test.db", &db);
+    assert(db != NULL);
+    
+    // Insert keys
+    assert(db_insert(db, "to_delete", "value") == DB_SUCCESS);
+    char *value = NULL;
+    assert(db_get(db, "to_delete", &value) == DB_SUCCESS);
+    free(value);
+    
+    // Delete
+    assert(db_delete(db, "to_delete") == DB_SUCCESS);
+    assert(db_get(db, "to_delete", &value) == DB_NOT_FOUND);
+    
+    // Delete non-existent key
+    assert(db_delete(db, "nonexistent") == DB_NOT_FOUND);
+    
+    db_close(db);
+    printf("  PASSED\n");
+}
+
 // Test many insertions to verify B-tree works
 void test_many_insertions(void) {
-    printf("Test 5: Many insertions\n");
+    printf("Test 6: Many insertions\n");
     
     db_t *db = NULL;
     db_open("test.db", &db);
@@ -150,6 +175,7 @@ int main(void) {
     test_insert_get();
     test_insert_duplicate();
     test_update();
+    test_delete();
     test_many_insertions();
     
     printf("\nAll database tests passed!\n");
