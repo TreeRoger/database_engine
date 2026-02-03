@@ -43,4 +43,9 @@ db_result_t db_begin(db_t *db);
 db_result_t db_commit(db_t *db);
 db_result_t db_rollback(db_t *db);
 
+// Query / range scan (Phase 4)
+// Callback for each key-value pair; NULL start or end means no bound
+void db_range(db_t *db, const char *start_key, const char *end_key,
+    void (*cb)(const char *key, const char *value, void *ctx), void *ctx);
+
 #endif // DB_H

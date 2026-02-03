@@ -578,3 +578,11 @@ db_result_t db_rollback(db_t *db) {
     pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
+
+void db_range(db_t *db, const char *start_key, const char *end_key,
+    void (*cb)(const char *key, const char *value, void *ctx), void *ctx) {
+    if (!db || !cb) return;
+    pthread_rwlock_rdlock(&db->rwlock);
+    btree_range_scan(db->index, start_key, end_key, cb, ctx);
+    pthread_rwlock_unlock(&db->rwlock);
+}

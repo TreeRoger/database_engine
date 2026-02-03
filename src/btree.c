@@ -662,3 +662,39 @@ void btree_foreach(btree_t *tree, void (*cb)(const char *key, const char *value,
     }
     btree_foreach_node(tree->root, cb, ctx);
 }
+
+/* Return true if key is within [start_key, end_key] (NULL means no bound). */
+static bool key_in_range(const char *key, const char *start_key, const char *end_key) {
+    if (start_key && strcmp(key, start_key) < 0) return false;
+    if (end_key && strcmp(key, end_key) > 0) return false;
+    return true;
+}
+
+static void btree_range_scan_node(btree_node_t *node, const char *start_key, const char *end_key,
+    void (*cb)(const char *key, const char *value, void *ctx), void *ctx) {
+    if (!node || !cb) return;
+    uint32_t i;
+    for (i = 0; i < node->num_keys; i++) {
+        if (!node->is_leaf && node->children && node->children[i]) {
+            /* Subtree i contains keys < node->keys[i]. Descend if range can overlap. */
+            if (start_key == NULL || strcmp(node->keys[i], start_key) > 0) {
+                btree_range_scan_node(node->children[i], start_key, end_key, cb, ctx);
+            }
+        }
+        if (node->keys[i] && node->values[i] && key_in_range(node->keys[i], start_key, end_key)) {
+            cb(node->keys[i], node->values[i], ctx);
+        }
+        if (!node->is_leaf && node->children && node->children[i + 1]) {
+            /* Subtree i+1 contains keys > node->keys[i]. Descend if range can overlap. */
+            if (end_key == NULL || strcmp(node->keys[i], end_key) < 0) {
+                btree_range_scan_node(node->children[i + 1], start_key, end_key, cb, ctx);
+            }
+        }
+    }
+}
+
+void btree_range_scan(btree_t *tree, const char *start_key, const char *end_key,
+    void (*cb)(const char *key, const char *value, void *ctx), void *ctx) {
+    if (!tree || !tree->root || !cb) return;
+    btree_range_scan_node(tree->root, start_key, end_key, cb, ctx);
+}

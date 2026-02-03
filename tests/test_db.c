@@ -309,6 +309,60 @@ void test_concurrent_access(void) {
     printf("  PASSED\n");
 }
 
+static int g_range_count;
+static char *g_range_keys[16];
+static char *g_range_values[16];
+
+static void range_cb(const char *key, const char *value, void *ctx) {
+    (void)ctx;
+    if (g_range_count < 16) {
+        g_range_keys[g_range_count] = strdup(key);
+        g_range_values[g_range_count] = strdup(value);
+        g_range_count++;
+    }
+}
+
+// Test range scan and full scan (query interface)
+void test_range_and_select_all(void) {
+    printf("Test 11: Range scan and SELECT *\n");
+    
+    const char *path = "test_range.db";
+    remove(path);
+    remove("test_range.db.wal");
+    
+    db_t *db = NULL;
+    assert(db_open(path, &db) == DB_SUCCESS);
+    assert(db_insert(db, "a", "1") == DB_SUCCESS);
+    assert(db_insert(db, "b", "2") == DB_SUCCESS);
+    assert(db_insert(db, "c", "3") == DB_SUCCESS);
+    assert(db_insert(db, "d", "4") == DB_SUCCESS);
+    assert(db_insert(db, "e", "5") == DB_SUCCESS);
+    
+    g_range_count = 0;
+    db_range(db, "b", "d", range_cb, NULL);
+    assert(g_range_count == 3);
+    assert(strcmp(g_range_keys[0], "b") == 0 && strcmp(g_range_values[0], "2") == 0);
+    assert(strcmp(g_range_keys[1], "c") == 0 && strcmp(g_range_values[1], "3") == 0);
+    assert(strcmp(g_range_keys[2], "d") == 0 && strcmp(g_range_values[2], "4") == 0);
+    for (int i = 0; i < g_range_count; i++) {
+        free(g_range_keys[i]);
+        free(g_range_values[i]);
+    }
+    
+    g_range_count = 0;
+    db_range(db, NULL, NULL, range_cb, NULL);
+    assert(g_range_count == 5);
+    for (int i = 0; i < g_range_count; i++) {
+        free(g_range_keys[i]);
+        free(g_range_values[i]);
+    }
+    
+    db_close(db);
+    remove(path);
+    remove("test_range.db.wal");
+    printf("  PASSED\n");
+}
+
 int main(void) {
     printf("Running database API tests...\n\n");
     
@@ -322,6 +376,8 @@ int main(void) {
     remove("test_tx.db.wal");
     remove("test_concurrent.db");
     remove("test_concurrent.db.wal");
+    remove("test_range.db");
+    remove("test_range.db.wal");
     
     test_db_open_close();
     test_insert_get();
@@ -333,6 +389,7 @@ int main(void) {
     test_persistence();
     test_many_insertions();
     test_concurrent_access();
+    test_range_and_select_all();
     
     printf("\nAll database tests passed!\n");
     return 0;

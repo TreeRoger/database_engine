@@ -42,4 +42,9 @@ void btree_print(btree_t *tree);
 // Iterate over all key-value pairs in order; callback receives (key, value, ctx)
 void btree_foreach(btree_t *tree, void (*cb)(const char *key, const char *value, void *ctx), void *ctx);
 
+// Range scan: in-order iteration over keys in [start_key, end_key] (inclusive)
+// NULL start_key = no lower bound; NULL end_key = no upper bound
+void btree_range_scan(btree_t *tree, const char *start_key, const char *end_key,
+    void (*cb)(const char *key, const char *value, void *ctx), void *ctx);
+
 #endif // BTREE_H

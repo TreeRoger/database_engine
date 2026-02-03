@@ -16,8 +16,15 @@ void print_usage(const char *program_name) {
     printf("  BEGIN                 - Start a transaction\n");
     printf("  COMMIT                - Commit the current transaction\n");
     printf("  ROLLBACK              - Rollback the current transaction\n");
+    printf("  SELECT *              - List all key-value pairs\n");
+    printf("  RANGE <start> <end>   - List keys in range [start, end] (inclusive)\n");
     printf("  QUIT                  - Exit the database\n");
     printf("\n");
+}
+
+static void print_kv_cb(const char *key, const char *value, void *ctx) {
+    (void)ctx;
+    printf("  %s => %s\n", key, value);
 }
 
 int main(int argc, char *argv[]) {
@@ -123,6 +130,24 @@ int main(int argc, char *argv[]) {
                 printf("OK: Transaction rolled back\n");
             } else {
                 printf("Error: Rollback failed\n");
+            }
+        } else if (strcmp(command, "SELECT") == 0) {
+            char rest[256];
+            rest[0] = '\0';
+            sscanf(line, "%*s %255s", rest);
+            if (strcmp(rest, "*") == 0) {
+                printf("(key => value)\n");
+                db_range(db, NULL, NULL, print_kv_cb, NULL);
+            } else {
+                printf("Usage: SELECT *\n");
+            }
+        } else if (strcmp(command, "RANGE") == 0) {
+            char start[256], end[256];
+            if (sscanf(line, "%*s %255s %255s", start, end) == 2) {
+                printf("(key => value in [%s, %s])\n", start, end);
+                db_range(db, start, end, print_kv_cb, NULL);
+            } else {
+                printf("Usage: RANGE <start_key> <end_key>\n");
             }
         } else {
             printf("Unknown command: %s\n", command);
