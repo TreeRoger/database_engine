@@ -39,4 +39,7 @@ int btree_delete(btree_t *tree, const char *key);
 // Print the B-tree (for debugging)
 void btree_print(btree_t *tree);
 
+// Iterate over all key-value pairs in order; callback receives (key, value, ctx)
+void btree_foreach(btree_t *tree, void (*cb)(const char *key, const char *value, void *ctx), void *ctx);
+
 #endif // BTREE_H

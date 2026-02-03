@@ -635,3 +635,30 @@ void btree_print(btree_t *tree) {
     printf("B-tree (height: %u, keys in root: %u)\n", 
            tree->height, tree->root->num_keys);
 }
+
+// In-order traversal: visit left subtree, then key-value, then right subtree
+static void btree_foreach_node(btree_node_t *node,
+    void (*cb)(const char *key, const char *value, void *ctx), void *ctx) {
+    if (!node || !cb) {
+        return;
+    }
+    uint32_t i;
+    for (i = 0; i < node->num_keys; i++) {
+        if (!node->is_leaf && node->children && node->children[i]) {
+            btree_foreach_node(node->children[i], cb, ctx);
+        }
+        if (node->keys[i] && node->values[i]) {
+            cb(node->keys[i], node->values[i], ctx);
+        }
+    }
+    if (!node->is_leaf && node->children && node->children[i]) {
+        btree_foreach_node(node->children[i], cb, ctx);
+    }
+}
+
+void btree_foreach(btree_t *tree, void (*cb)(const char *key, const char *value, void *ctx), void *ctx) {
+    if (!tree || !tree->root || !cb) {
+        return;
+    }
+    btree_foreach_node(tree->root, cb, ctx);
+}

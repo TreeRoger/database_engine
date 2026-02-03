@@ -134,12 +134,39 @@ void test_delete(void) {
     printf("  PASSED\n");
 }
 
-// Test many insertions to verify B-tree works
-void test_many_insertions(void) {
-    printf("Test 6: Many insertions\n");
+// Test persistence: data survives close and reopen
+void test_persistence(void) {
+    printf("Test 6: Persistence\n");
+    
+    const char *path = "test_persist.db";
+    remove(path);
     
     db_t *db = NULL;
-    db_open("test.db", &db);
+    assert(db_open(path, &db) == DB_SUCCESS);
+    assert(db_insert(db, "saved_key", "saved_value") == DB_SUCCESS);
+    assert(db_insert(db, "another", "data") == DB_SUCCESS);
+    db_close(db);
+    
+    assert(db_open(path, &db) == DB_SUCCESS);
+    char *v = NULL;
+    assert(db_get(db, "saved_key", &v) == DB_SUCCESS);
+    assert(strcmp(v, "saved_value") == 0);
+    free(v);
+    assert(db_get(db, "another", &v) == DB_SUCCESS);
+    assert(strcmp(v, "data") == 0);
+    free(v);
+    db_close(db);
+    
+    remove(path);
+    printf("  PASSED\n");
+}
+
+// Test many insertions to verify B-tree works
+void test_many_insertions(void) {
+    printf("Test 7: Many insertions\n");
+    
+    db_t *db = NULL;
+    db_open("test_many.db", &db);
     assert(db != NULL);
     
     // Insert 50 key-value pairs
@@ -171,17 +198,18 @@ void test_many_insertions(void) {
 int main(void) {
     printf("Running database API tests...\n\n");
     
+    remove("test.db");
+    remove("test_many.db");
+    remove("test_persist.db");
+    
     test_db_open_close();
     test_insert_get();
     test_insert_duplicate();
     test_update();
     test_delete();
+    test_persistence();
     test_many_insertions();
     
     printf("\nAll database tests passed!\n");
-    
-    // Clean up test file
-    remove("test.db");
-    
     return 0;
 }

@@ -21,10 +21,10 @@ A lightweight, educational database engine written in C, implementing core datab
 - [x] B-tree memory management
 - [x] Database API integration (insert, get, update)
 - [x] Command-line interface (CLI)
-- [x] Comprehensive unit tests (B-tree: 9 cases, DB API: 6 cases)
+- [x] Comprehensive unit tests (B-tree: 9 cases, DB API: 7 cases including persistence)
 - [x] B-tree delete operation (with borrow/merge)
-- [ ] Page-based storage
-- [ ] Persistence to disk
+- [x] Page-based storage (page manager)
+- [x] Persistence to disk (save on close, load on open)
 
 ### Phase 2: Transactions
 - [ ] Write-ahead logging (WAL)
