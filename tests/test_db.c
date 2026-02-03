@@ -134,9 +134,63 @@ void test_delete(void) {
     printf("  PASSED\n");
 }
 
+// Test transaction commit
+void test_transaction_commit(void) {
+    printf("Test 6: Transaction commit\n");
+    
+    const char *path = "test_tx.db";
+    remove(path);
+    remove("test_tx.db.wal");
+    
+    db_t *db = NULL;
+    assert(db_open(path, &db) == DB_SUCCESS);
+    assert(db_begin(db) == DB_SUCCESS);
+    assert(db_insert(db, "tx_key", "tx_value") == DB_SUCCESS);
+    assert(db_commit(db) == DB_SUCCESS);
+    char *v = NULL;
+    assert(db_get(db, "tx_key", &v) == DB_SUCCESS);
+    assert(strcmp(v, "tx_value") == 0);
+    free(v);
+    db_close(db);
+    
+    assert(db_open(path, &db) == DB_SUCCESS);
+    assert(db_get(db, "tx_key", &v) == DB_SUCCESS);
+    assert(strcmp(v, "tx_value") == 0);
+    free(v);
+    db_close(db);
+    
+    remove(path);
+    remove("test_tx.db.wal");
+    printf("  PASSED\n");
+}
+
+// Test transaction rollback
+void test_transaction_rollback(void) {
+    printf("Test 7: Transaction rollback\n");
+    
+    db_t *db = NULL;
+    db_open("test.db", &db);
+    assert(db != NULL);
+    assert(db_insert(db, "keep", "value") == DB_SUCCESS);
+    assert(db_commit(db) == DB_SUCCESS);
+    
+    assert(db_begin(db) == DB_SUCCESS);
+    assert(db_insert(db, "rollback_key", "rollback_value") == DB_SUCCESS);
+    assert(db_delete(db, "keep") == DB_SUCCESS);
+    assert(db_rollback(db) == DB_SUCCESS);
+    
+    char *v = NULL;
+    assert(db_get(db, "rollback_key", &v) == DB_NOT_FOUND);
+    assert(db_get(db, "keep", &v) == DB_SUCCESS);
+    assert(strcmp(v, "value") == 0);
+    free(v);
+    db_close(db);
+    printf("  PASSED\n");
+}
+
 // Test persistence: data survives close and reopen
 void test_persistence(void) {
-    printf("Test 6: Persistence\n");
+    printf("Test 8: Persistence\n");
     
     const char *path = "test_persist.db";
     remove(path);
@@ -163,7 +217,7 @@ void test_persistence(void) {
 
 // Test many insertions to verify B-tree works
 void test_many_insertions(void) {
-    printf("Test 7: Many insertions\n");
+    printf("Test 9: Many insertions\n");
     
     db_t *db = NULL;
     db_open("test_many.db", &db);
@@ -199,14 +253,21 @@ int main(void) {
     printf("Running database API tests...\n\n");
     
     remove("test.db");
+    remove("test.db.wal");
     remove("test_many.db");
+    remove("test_many.db.wal");
     remove("test_persist.db");
+    remove("test_persist.db.wal");
+    remove("test_tx.db");
+    remove("test_tx.db.wal");
     
     test_db_open_close();
     test_insert_get();
     test_insert_duplicate();
     test_update();
     test_delete();
+    test_transaction_commit();
+    test_transaction_rollback();
     test_persistence();
     test_many_insertions();
     

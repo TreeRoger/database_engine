@@ -38,4 +38,9 @@ db_result_t db_delete(db_t *db, const char *key);
 // Update a key-value pair
 db_result_t db_update(db_t *db, const char *key, const char *value);
 
+// Transaction support (Phase 2)
+db_result_t db_begin(db_t *db);
+db_result_t db_commit(db_t *db);
+db_result_t db_rollback(db_t *db);
+
 #endif // DB_H

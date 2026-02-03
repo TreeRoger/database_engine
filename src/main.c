@@ -13,6 +13,9 @@ void print_usage(const char *program_name) {
     printf("  GET <key>             - Get a value by key\n");
     printf("  DELETE <key>          - Delete a key-value pair\n");
     printf("  UPDATE <key> <value>  - Update a key-value pair\n");
+    printf("  BEGIN                 - Start a transaction\n");
+    printf("  COMMIT                - Commit the current transaction\n");
+    printf("  ROLLBACK              - Rollback the current transaction\n");
     printf("  QUIT                  - Exit the database\n");
     printf("\n");
 }
@@ -99,6 +102,27 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 printf("Usage: UPDATE <key> <value>\n");
+            }
+        } else if (strcmp(command, "BEGIN") == 0) {
+            db_result_t result = db_begin(db);
+            if (result == DB_SUCCESS) {
+                printf("OK: Transaction started\n");
+            } else {
+                printf("Error: Cannot start transaction\n");
+            }
+        } else if (strcmp(command, "COMMIT") == 0) {
+            db_result_t result = db_commit(db);
+            if (result == DB_SUCCESS) {
+                printf("OK: Transaction committed\n");
+            } else {
+                printf("Error: Commit failed\n");
+            }
+        } else if (strcmp(command, "ROLLBACK") == 0) {
+            db_result_t result = db_rollback(db);
+            if (result == DB_SUCCESS) {
+                printf("OK: Transaction rolled back\n");
+            } else {
+                printf("Error: Rollback failed\n");
             }
         } else {
             printf("Unknown command: %s\n", command);

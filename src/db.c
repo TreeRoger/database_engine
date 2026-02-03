@@ -9,12 +9,24 @@
 #include "btree.h"
 #include "page.h"
 
+// Transaction undo log entry (LIFO: rollback undoes from first pushed)
+typedef enum { TX_OP_INSERT, TX_OP_DELETE, TX_OP_UPDATE } tx_op_t;
+
+typedef struct tx_entry {
+    tx_op_t op;
+    char *key;
+    char *old_value;   /* for DELETE/UPDATE: value to restore on rollback */
+    struct tx_entry *next;
+} tx_entry_t;
+
 // Database structure implementation
 struct db_impl {
     char *filename;
     page_manager_t *pm;
     btree_t *index;
     bool persistent;
+    bool in_transaction;
+    tx_entry_t *undo_log;   /* head of undo log; we push at head, undo in order */
 };
 
 // Metadata in page 0: first 4 bytes of data = number of data pages (1-based)
@@ -22,6 +34,151 @@ struct db_impl {
 #define PAGE_DATA_CAPACITY (PAGE_SIZE - 16 - 4)  // data[] size minus 4-byte bytes_used
 #define MAX_KEY_LEN 4096
 #define MAX_VALUE_LEN 65536
+#define WAL_TYPE_PUT  0
+#define WAL_TYPE_DEL  1
+
+static void tx_clear(db_t *db) {
+    while (db->undo_log) {
+        tx_entry_t *e = db->undo_log;
+        db->undo_log = e->next;
+        free(e->key);
+        free(e->old_value);
+        free(e);
+    }
+}
+
+static void tx_rollback_apply(db_t *db) {
+    tx_entry_t *e = db->undo_log;
+    while (e) {
+        if (e->op == TX_OP_INSERT) {
+            btree_delete(db->index, e->key);
+        } else if (e->op == TX_OP_DELETE && e->old_value) {
+            btree_insert(db->index, e->key, e->old_value);
+        } else if (e->op == TX_OP_UPDATE && e->old_value) {
+            btree_insert(db->index, e->key, e->old_value);
+        }
+        e = e->next;
+    }
+}
+
+static tx_entry_t* tx_push(db_t *db, tx_op_t op, const char *key, char *old_value) {
+    tx_entry_t *e = malloc(sizeof(tx_entry_t));
+    if (!e) return NULL;
+    e->op = op;
+    e->key = strdup(key);
+    e->old_value = old_value;  /* caller gives ownership or NULL */
+    e->next = db->undo_log;
+    db->undo_log = e;
+    return e;
+}
+
+// Replay WAL file into B-tree (after loading main DB)
+static db_result_t db_replay_wal(db_t *db) {
+    size_t fn_len = strlen(db->filename) + 8;
+    char *wal_path = malloc(fn_len);
+    if (!wal_path) return DB_ERROR;
+    snprintf(wal_path, fn_len, "%s.wal", db->filename);
+    int fd = open(wal_path, O_RDONLY);
+    free(wal_path);
+    if (fd < 0) return DB_SUCCESS;  /* no WAL file */
+    db_result_t result = DB_SUCCESS;
+    uint8_t type;
+    uint32_t key_len, value_len;
+    char *key = NULL;
+    char *value = NULL;
+    while (read(fd, &type, 1) == 1) {
+        if (read(fd, &key_len, 4) != 4) { result = DB_ERROR; break; }
+        if (key_len > MAX_KEY_LEN) { result = DB_ERROR; break; }
+        free(key);
+        key = malloc(key_len + 1);
+        if (!key) { result = DB_ERROR; break; }
+        if ((size_t)read(fd, key, key_len) != key_len) { result = DB_ERROR; break; }
+        key[key_len] = '\0';
+        if (type == WAL_TYPE_PUT) {
+            if (read(fd, &value_len, 4) != 4) { result = DB_ERROR; break; }
+            if (value_len > MAX_VALUE_LEN) { result = DB_ERROR; break; }
+            free(value);
+            value = malloc(value_len + 1);
+            if (!value) { result = DB_ERROR; break; }
+            if ((size_t)read(fd, value, value_len) != value_len) { result = DB_ERROR; break; }
+            value[value_len] = '\0';
+            btree_insert(db->index, key, value);
+        } else if (type == WAL_TYPE_DEL) {
+            btree_delete(db->index, key);
+        }
+    }
+    free(key);
+    free(value);
+    close(fd);
+    return result;
+}
+
+// Append current transaction to WAL and fsync
+static db_result_t db_wal_commit(db_t *db) {
+    size_t fn_len = strlen(db->filename) + 8;
+    char *wal_path = malloc(fn_len);
+    if (!wal_path) return DB_ERROR;
+    snprintf(wal_path, fn_len, "%s.wal", db->filename);
+    int fd = open(wal_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    free(wal_path);
+    if (fd < 0) return DB_ERROR;
+    /* Undo log is newest-first; write to WAL in chronological order (oldest first). */
+    size_t n = 0;
+    for (tx_entry_t *t = db->undo_log; t; t = t->next) n++;
+    tx_entry_t **arr = malloc(n * sizeof(tx_entry_t *));
+    if (!arr) { close(fd); return DB_ERROR; }
+    size_t i = 0;
+    for (tx_entry_t *t = db->undo_log; t; t = t->next) arr[i++] = t;
+    for (i = n; i > 0; i--) {
+        tx_entry_t *e = arr[i - 1];
+        uint8_t type;
+        uint32_t key_len = (uint32_t)strlen(e->key);
+        if (e->op == TX_OP_INSERT) {
+            type = WAL_TYPE_PUT;
+            if (write(fd, &type, 1) != 1) { free(arr); close(fd); return DB_ERROR; }
+            if (write(fd, &key_len, 4) != 4) { free(arr); close(fd); return DB_ERROR; }
+            if (write(fd, e->key, key_len) != (ssize_t)key_len) { free(arr); close(fd); return DB_ERROR; }
+            char *val = btree_search(db->index, e->key);
+            if (val) {
+                uint32_t value_len = (uint32_t)strlen(val);
+                if (write(fd, &value_len, 4) != 4) { free(val); free(arr); close(fd); return DB_ERROR; }
+                if (write(fd, val, value_len) != (ssize_t)value_len) { free(val); free(arr); close(fd); return DB_ERROR; }
+                free(val);
+            } else {
+                uint32_t z = 0;
+                if (write(fd, &z, 4) != 4) { free(arr); close(fd); return DB_ERROR; }
+            }
+        } else if (e->op == TX_OP_DELETE) {
+            type = WAL_TYPE_DEL;
+            if (write(fd, &type, 1) != 1) { free(arr); close(fd); return DB_ERROR; }
+            if (write(fd, &key_len, 4) != 4) { free(arr); close(fd); return DB_ERROR; }
+            if (write(fd, e->key, key_len) != (ssize_t)key_len) { free(arr); close(fd); return DB_ERROR; }
+        } else if (e->op == TX_OP_UPDATE && e->old_value) {
+            type = WAL_TYPE_PUT;
+            if (write(fd, &type, 1) != 1) { free(arr); close(fd); return DB_ERROR; }
+            if (write(fd, &key_len, 4) != 4) { free(arr); close(fd); return DB_ERROR; }
+            if (write(fd, e->key, key_len) != (ssize_t)key_len) { free(arr); close(fd); return DB_ERROR; }
+            uint32_t value_len = (uint32_t)strlen(e->old_value);
+            if (write(fd, &value_len, 4) != 4) { free(arr); close(fd); return DB_ERROR; }
+            if (write(fd, e->old_value, value_len) != (ssize_t)value_len) { free(arr); close(fd); return DB_ERROR; }
+        }
+    }
+    free(arr);
+    if (fsync(fd) != 0) { close(fd); return DB_ERROR; }
+    close(fd);
+    return DB_SUCCESS;
+}
+
+// Truncate WAL after checkpoint (save)
+static void db_wal_checkpoint(db_t *db) {
+    size_t fn_len = strlen(db->filename) + 8;
+    char *wal_path = malloc(fn_len);
+    if (!wal_path) return;
+    snprintf(wal_path, fn_len, "%s.wal", db->filename);
+    int fd = open(wal_path, O_WRONLY | O_TRUNC, 0644);
+    free(wal_path);
+    if (fd >= 0) close(fd);
+}
 
 // Load all key-value pairs from data pages into the B-tree
 static db_result_t db_load_from_pages(db_t *db) {
@@ -208,6 +365,8 @@ db_result_t db_open(const char *filename, db_t **db) {
         return DB_ERROR;
     }
     new_db->persistent = true;
+    new_db->in_transaction = false;
+    new_db->undo_log = NULL;
 
     if (new_db->pm->num_pages > 0) {
         db_result_t load_result = db_load_from_pages(new_db);
@@ -219,6 +378,13 @@ db_result_t db_open(const char *filename, db_t **db) {
             return load_result;
         }
     }
+    if (db_replay_wal(new_db) != DB_SUCCESS) {
+        page_manager_destroy(new_db->pm);
+        btree_destroy(new_db->index);
+        free(new_db->filename);
+        free(new_db);
+        return DB_ERROR;
+    }
 
     *db = new_db;
     return DB_SUCCESS;
@@ -229,9 +395,14 @@ db_result_t db_close(db_t *db) {
         return DB_ERROR;
     }
 
+    if (db->in_transaction) {
+        db_rollback(db);
+    }
     if (db->persistent && db->pm && db->index) {
         db_save_to_pages(db);
+        db_wal_checkpoint(db);
     }
+    tx_clear(db);
 
     if (db->index) {
         btree_destroy(db->index);
@@ -259,22 +430,21 @@ db_result_t db_insert(db_t *db, const char *key, const char *value) {
     if (!db || !key || !value) {
         return DB_ERROR;
     }
-    
-    // Check if key already exists
+
     char *existing_value = btree_search(db->index, key);
     if (existing_value != NULL) {
         free(existing_value);
         return DB_EXISTS;
     }
-    
-    // Insert into B-tree
+
     int result = btree_insert(db->index, key, value);
     if (result != 0) {
         return DB_ERROR;
     }
-    
-    // TODO: Write to disk via page manager when persistence is implemented
-    
+    if (db->in_transaction && tx_push(db, TX_OP_INSERT, key, NULL) == NULL) {
+        btree_delete(db->index, key);
+        return DB_ERROR;
+    }
     return DB_SUCCESS;
 }
 
@@ -298,24 +468,25 @@ db_result_t db_delete(db_t *db, const char *key) {
     if (!db || !key) {
         return DB_ERROR;
     }
-    
-    // Check if key exists first
+
     char *existing_value = btree_search(db->index, key);
     if (existing_value == NULL) {
         return DB_NOT_FOUND;
     }
-    free(existing_value);
-    
-    // Delete from B-tree
-    // Note: btree_delete is not yet implemented, so this will fail for now
-    // Once delete is implemented, this will work
+
     int result = btree_delete(db->index, key);
     if (result != 0) {
+        free(existing_value);
         return DB_ERROR;
     }
-    
-    // TODO: Free associated pages when persistence is implemented
-    
+    if (db->in_transaction && tx_push(db, TX_OP_DELETE, key, existing_value) == NULL) {
+        free(existing_value);
+        btree_insert(db->index, key, existing_value);
+        return DB_ERROR;
+    }
+    if (!db->in_transaction) {
+        free(existing_value);
+    }
     return DB_SUCCESS;
 }
 
@@ -323,21 +494,52 @@ db_result_t db_update(db_t *db, const char *key, const char *value) {
     if (!db || !key || !value) {
         return DB_ERROR;
     }
-    
-    // Check if key exists
+
     char *existing_value = btree_search(db->index, key);
     if (existing_value == NULL) {
         return DB_NOT_FOUND;
     }
-    free(existing_value);
-    
-    // Update value in B-tree (insert will update if key exists)
+
     int result = btree_insert(db->index, key, value);
     if (result != 0) {
+        free(existing_value);
         return DB_ERROR;
     }
-    
-    // TODO: Write to disk when persistence is implemented
-    
+    if (db->in_transaction && tx_push(db, TX_OP_UPDATE, key, existing_value) == NULL) {
+        free(existing_value);
+        btree_insert(db->index, key, existing_value);
+        return DB_ERROR;
+    }
+    if (!db->in_transaction) {
+        free(existing_value);
+    }
+    return DB_SUCCESS;
+}
+
+db_result_t db_begin(db_t *db) {
+    if (!db) return DB_ERROR;
+    if (db->in_transaction) return DB_ERROR;  /* nested tx not supported */
+    tx_clear(db);
+    db->in_transaction = true;
+    return DB_SUCCESS;
+}
+
+db_result_t db_commit(db_t *db) {
+    if (!db) return DB_ERROR;
+    if (!db->in_transaction) return DB_SUCCESS;
+    if (db_wal_commit(db) != DB_SUCCESS) {
+        return DB_ERROR;
+    }
+    tx_clear(db);
+    db->in_transaction = false;
+    return DB_SUCCESS;
+}
+
+db_result_t db_rollback(db_t *db) {
+    if (!db) return DB_ERROR;
+    if (!db->in_transaction) return DB_SUCCESS;
+    tx_rollback_apply(db);
+    tx_clear(db);
+    db->in_transaction = false;
     return DB_SUCCESS;
 }
