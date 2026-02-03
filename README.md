@@ -21,20 +21,20 @@ A lightweight, educational database engine written in C, implementing core datab
 - [x] B-tree memory management
 - [x] Database API integration (insert, get, update)
 - [x] Command-line interface (CLI)
-- [x] Comprehensive unit tests (B-tree: 9 cases, DB API: 9 cases including transactions)
+- [x] Comprehensive unit tests (B-tree: 9 cases, DB API: 10 cases including concurrency)
 - [x] B-tree delete operation (with borrow/merge)
 - [x] Page-based storage (page manager)
 - [x] Persistence to disk (save on close, load on open)
 
-### Phase 2: Transactions (Current)
+### Phase 2: Transactions
 - [x] Write-ahead logging (WAL)
 - [x] Transaction support (BEGIN, COMMIT, ROLLBACK)
 - [x] Undo log for rollback; WAL replay on open
 
-### Phase 3: Concurrency
-- [ ] Reader-writer locks
-- [ ] Multi-threaded access
-- [ ] Deadlock detection
+### Phase 3: Concurrency (Current)
+- [x] Reader-writer locks (pthread_rwlock)
+- [x] Multi-threaded access (concurrent insert/get test)
+- [ ] Deadlock detection (optional; single lock avoids deadlock)
 
 ### Phase 4: Query Interface
 - [ ] SQL-like query parser (simple)

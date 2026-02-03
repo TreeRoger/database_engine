@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <pthread.h>
 #include "../include/db.h"
 
 // Test database open and close
@@ -249,6 +250,65 @@ void test_many_insertions(void) {
     printf("  PASSED\n");
 }
 
+#define CONCURRENT_THREADS 8
+#define CONCURRENT_INSERTS 20
+static db_t *g_db_concurrent = NULL;
+
+static void *thread_insert_and_get(void *arg) {
+    long id = (long)arg;
+    for (int i = 0; i < CONCURRENT_INSERTS; i++) {
+        char key[64];
+        char value[64];
+        snprintf(key, sizeof(key), "t%ld_k%d", id, i);
+        snprintf(value, sizeof(value), "v%ld_%d", id, i);
+        assert(db_insert(g_db_concurrent, key, value) == DB_SUCCESS);
+        char *v = NULL;
+        assert(db_get(g_db_concurrent, key, &v) == DB_SUCCESS);
+        assert(strcmp(v, value) == 0);
+        free(v);
+    }
+    return NULL;
+}
+
+// Test concurrent reader-writer access
+void test_concurrent_access(void) {
+    printf("Test 10: Concurrent access\n");
+    
+    const char *path = "test_concurrent.db";
+    remove(path);
+    remove("test_concurrent.db.wal");
+    
+    g_db_concurrent = NULL;
+    assert(db_open(path, &g_db_concurrent) == DB_SUCCESS);
+    
+    pthread_t threads[CONCURRENT_THREADS];
+    for (long t = 0; t < CONCURRENT_THREADS; t++) {
+        assert(pthread_create(&threads[t], NULL, thread_insert_and_get, (void *)t) == 0);
+    }
+    for (long t = 0; t < CONCURRENT_THREADS; t++) {
+        assert(pthread_join(threads[t], NULL) == 0);
+    }
+    
+    for (long t = 0; t < CONCURRENT_THREADS; t++) {
+        for (int i = 0; i < CONCURRENT_INSERTS; i++) {
+            char key[64];
+            char expected[64];
+            snprintf(key, sizeof(key), "t%ld_k%d", t, i);
+            snprintf(expected, sizeof(expected), "v%ld_%d", t, i);
+            char *v = NULL;
+            assert(db_get(g_db_concurrent, key, &v) == DB_SUCCESS);
+            assert(strcmp(v, expected) == 0);
+            free(v);
+        }
+    }
+    
+    db_close(g_db_concurrent);
+    g_db_concurrent = NULL;
+    remove(path);
+    remove("test_concurrent.db.wal");
+    printf("  PASSED\n");
+}
+
 int main(void) {
     printf("Running database API tests...\n\n");
     
@@ -260,6 +320,8 @@ int main(void) {
     remove("test_persist.db.wal");
     remove("test_tx.db");
     remove("test_tx.db.wal");
+    remove("test_concurrent.db");
+    remove("test_concurrent.db.wal");
     
     test_db_open_close();
     test_insert_get();
@@ -270,6 +332,7 @@ int main(void) {
     test_transaction_rollback();
     test_persistence();
     test_many_insertions();
+    test_concurrent_access();
     
     printf("\nAll database tests passed!\n");
     return 0;

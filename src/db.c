@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stdint.h>
+#include <pthread.h>
 #include "db.h"
 #include "btree.h"
 #include "page.h"
@@ -26,7 +27,8 @@ struct db_impl {
     btree_t *index;
     bool persistent;
     bool in_transaction;
-    tx_entry_t *undo_log;   /* head of undo log; we push at head, undo in order */
+    tx_entry_t *undo_log;
+    pthread_rwlock_t rwlock;   /* reader-writer lock for multi-threaded access */
 };
 
 // Metadata in page 0: first 4 bytes of data = number of data pages (1-based)
@@ -367,10 +369,18 @@ db_result_t db_open(const char *filename, db_t **db) {
     new_db->persistent = true;
     new_db->in_transaction = false;
     new_db->undo_log = NULL;
+    if (pthread_rwlock_init(&new_db->rwlock, NULL) != 0) {
+        page_manager_destroy(new_db->pm);
+        btree_destroy(new_db->index);
+        free(new_db->filename);
+        free(new_db);
+        return DB_ERROR;
+    }
 
     if (new_db->pm->num_pages > 0) {
         db_result_t load_result = db_load_from_pages(new_db);
         if (load_result != DB_SUCCESS) {
+            pthread_rwlock_destroy(&new_db->rwlock);
             page_manager_destroy(new_db->pm);
             btree_destroy(new_db->index);
             free(new_db->filename);
@@ -379,6 +389,7 @@ db_result_t db_open(const char *filename, db_t **db) {
         }
     }
     if (db_replay_wal(new_db) != DB_SUCCESS) {
+        pthread_rwlock_destroy(&new_db->rwlock);
         page_manager_destroy(new_db->pm);
         btree_destroy(new_db->index);
         free(new_db->filename);
@@ -413,16 +424,15 @@ db_result_t db_close(db_t *db) {
         page_manager_destroy(db->pm);
         db->pm = NULL;
     }
-    
-    // Free filename
+
+    pthread_rwlock_destroy(&db->rwlock);
+
     if (db->filename) {
         free(db->filename);
         db->filename = NULL;
     }
-    
-    // Free database structure
+
     free(db);
-    
     return DB_SUCCESS;
 }
 
@@ -430,21 +440,24 @@ db_result_t db_insert(db_t *db, const char *key, const char *value) {
     if (!db || !key || !value) {
         return DB_ERROR;
     }
-
+    pthread_rwlock_wrlock(&db->rwlock);
     char *existing_value = btree_search(db->index, key);
     if (existing_value != NULL) {
         free(existing_value);
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_EXISTS;
     }
-
     int result = btree_insert(db->index, key, value);
     if (result != 0) {
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_ERROR;
     }
     if (db->in_transaction && tx_push(db, TX_OP_INSERT, key, NULL) == NULL) {
         btree_delete(db->index, key);
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_ERROR;
     }
+    pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
 
@@ -452,15 +465,14 @@ db_result_t db_get(db_t *db, const char *key, char **value) {
     if (!db || !key || !value) {
         return DB_ERROR;
     }
-    
-    // Search B-tree for key
+    pthread_rwlock_rdlock(&db->rwlock);
     char *found_value = btree_search(db->index, key);
     if (found_value == NULL) {
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_NOT_FOUND;
     }
-    
-    // Return the value (caller is responsible for freeing it)
     *value = found_value;
+    pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
 
@@ -468,25 +480,28 @@ db_result_t db_delete(db_t *db, const char *key) {
     if (!db || !key) {
         return DB_ERROR;
     }
-
+    pthread_rwlock_wrlock(&db->rwlock);
     char *existing_value = btree_search(db->index, key);
     if (existing_value == NULL) {
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_NOT_FOUND;
     }
-
     int result = btree_delete(db->index, key);
     if (result != 0) {
         free(existing_value);
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_ERROR;
     }
     if (db->in_transaction && tx_push(db, TX_OP_DELETE, key, existing_value) == NULL) {
         free(existing_value);
         btree_insert(db->index, key, existing_value);
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_ERROR;
     }
     if (!db->in_transaction) {
         free(existing_value);
     }
+    pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
 
@@ -494,52 +509,72 @@ db_result_t db_update(db_t *db, const char *key, const char *value) {
     if (!db || !key || !value) {
         return DB_ERROR;
     }
-
+    pthread_rwlock_wrlock(&db->rwlock);
     char *existing_value = btree_search(db->index, key);
     if (existing_value == NULL) {
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_NOT_FOUND;
     }
-
     int result = btree_insert(db->index, key, value);
     if (result != 0) {
         free(existing_value);
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_ERROR;
     }
     if (db->in_transaction && tx_push(db, TX_OP_UPDATE, key, existing_value) == NULL) {
         free(existing_value);
         btree_insert(db->index, key, existing_value);
+        pthread_rwlock_unlock(&db->rwlock);
         return DB_ERROR;
     }
     if (!db->in_transaction) {
         free(existing_value);
     }
+    pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
 
 db_result_t db_begin(db_t *db) {
     if (!db) return DB_ERROR;
-    if (db->in_transaction) return DB_ERROR;  /* nested tx not supported */
+    pthread_rwlock_wrlock(&db->rwlock);
+    if (db->in_transaction) {
+        pthread_rwlock_unlock(&db->rwlock);
+        return DB_ERROR;
+    }
     tx_clear(db);
     db->in_transaction = true;
+    pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
 
 db_result_t db_commit(db_t *db) {
     if (!db) return DB_ERROR;
-    if (!db->in_transaction) return DB_SUCCESS;
-    if (db_wal_commit(db) != DB_SUCCESS) {
-        return DB_ERROR;
+    pthread_rwlock_wrlock(&db->rwlock);
+    if (!db->in_transaction) {
+        pthread_rwlock_unlock(&db->rwlock);
+        return DB_SUCCESS;
+    }
+    db_result_t result = db_wal_commit(db);
+    if (result != DB_SUCCESS) {
+        pthread_rwlock_unlock(&db->rwlock);
+        return result;
     }
     tx_clear(db);
     db->in_transaction = false;
+    pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
 
 db_result_t db_rollback(db_t *db) {
     if (!db) return DB_ERROR;
-    if (!db->in_transaction) return DB_SUCCESS;
+    pthread_rwlock_wrlock(&db->rwlock);
+    if (!db->in_transaction) {
+        pthread_rwlock_unlock(&db->rwlock);
+        return DB_SUCCESS;
+    }
     tx_rollback_apply(db);
     tx_clear(db);
     db->in_transaction = false;
+    pthread_rwlock_unlock(&db->rwlock);
     return DB_SUCCESS;
 }
